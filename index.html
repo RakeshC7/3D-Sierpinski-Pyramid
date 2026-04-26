@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/controls.css">
+    <link rel="stylesheet" href="css/sliders.css">
+    <link rel="stylesheet" href="css/axis-labels.css">
+    <link rel="stylesheet" href="css/visual-effects.css">
+    <title>Sierpinski Pyramids - WebGL</title>
+</head>
+<body>
+    <!-- Shader code for WebGL -->
+    <!-- Vertex shader: handles the position and transformation of each point -->
+    <script id="shader-vs" type="x-shader/x-vertex">
+        attribute vec3 aVertexPosition;
+        attribute vec3 aVertexNormal;
+        attribute vec4 aVertexColor;
+
+        uniform mat4 uPMatrix;
+        uniform mat4 uMVMatrix;
+        uniform mat3 uNMatrix;
+
+        varying vec3 vTransformedNormal;
+        varying vec4 vPosition;
+        varying vec4 vDiffuseColor;
+
+        void main(void) {
+            vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+            gl_Position = uPMatrix * vPosition;
+            vTransformedNormal = uNMatrix * aVertexNormal;
+            vDiffuseColor = aVertexColor;
+            gl_PointSize = 6.0; // For glitter particle rendering (dense coverage)
+        }
+    </script>
+
+    <!-- Fragment shader: handles the color and lighting of each pixel -->
+    <script id="shader-fs" type="x-shader/x-fragment">
+        precision mediump float;
+
+        uniform vec3 uAmbientColor;
+        uniform vec3 uPointLightLocation;
+        uniform vec3 uPointLightColor;
+
+        varying vec3 vTransformedNormal;
+        varying vec4 vPosition;
+        varying vec4 vDiffuseColor;
+
+        void main(void) {
+            // For points (glitter particles), create enhanced circular shape with glow
+            vec2 center = gl_PointCoord - vec2(0.5, 0.5);
+            float dist = length(center);
+            
+            // Enhanced glitter particle rendering with glow effect
+            float inner_radius = 0.2;
+            float outer_radius = 0.5;
+            float glow_radius = 0.7;
+            
+            // Core bright center
+            float core_alpha = 1.0 - smoothstep(0.0, inner_radius, dist);
+            // Outer glow
+            float glow_alpha = (1.0 - smoothstep(inner_radius, outer_radius, dist)) * 0.6;
+            // Soft outer edge
+            float edge_alpha = (1.0 - smoothstep(outer_radius, glow_radius, dist)) * 0.3;
+            
+            float point_alpha = min(1.0, core_alpha + glow_alpha + edge_alpha);
+            
+            // Check if we're rendering a point (gl_PointCoord is in valid range for points)
+            bool is_point = (gl_PointCoord.x >= 0.0 && gl_PointCoord.x <= 1.0 && 
+                            gl_PointCoord.y >= 0.0 && gl_PointCoord.y <= 1.0 && 
+                            dist < glow_radius);
+            
+            if (is_point) {
+                // Enhanced glitter rendering with glow - brighter center, softer edges
+                vec3 glow_color = mix(vDiffuseColor.rgb, vec3(1.0, 1.0, 0.9), 0.3); // Add slight gold tint to glow
+                gl_FragColor = vec4(glow_color, vDiffuseColor.a * point_alpha);
+                return;
+            }
+            
+            // Triangle rendering - use normal Phong lighting
+            vec3 light_direction = normalize(uPointLightLocation - vPosition.xyz);
+            vec3 eye_direction = -normalize(vPosition.xyz);
+
+            vec3 surface_normal;
+            if (gl_FrontFacing) {
+                surface_normal = normalize(vTransformedNormal);
+            } else {
+                surface_normal = -normalize(vTransformedNormal);
+            }
+
+            float light_intensity = max(dot(surface_normal, light_direction), 0.0);
+            float light_outer_radius = 5.0;
+            float light_inner_radius = 0.0;
+            float light_distance = length(vPosition.xyz - uPointLightLocation);
+            float attenuation = 1.0 - smoothstep(light_inner_radius, light_outer_radius, light_distance);
+
+            // Standard Phong lighting model preserving vertex color saturation
+            // Ambient: vertex color always visible (high ambient = vibrant colors)
+            vec3 ambient = vDiffuseColor.rgb * uAmbientColor;
+            // Diffuse: vertex color with lighting variation (white light preserves color)
+            vec3 diffuse = vDiffuseColor.rgb * light_intensity * 0.25;
+            // Subtle specular highlight
+            vec3 specular = vec3(0.0, 0.0, 0.0);
+            if (light_intensity > 0.0) {
+                specular = vec3(1.0, 1.0, 1.0) * pow(max(dot(reflect(-light_direction, surface_normal), eye_direction), 0.0), 50.0) * 0.1;
+            }
+            // Apply attenuation
+            diffuse = attenuation * diffuse;
+            specular = attenuation * specular;
+            // Final color: ambient + diffuse + specular (vertex colors preserved)
+            vec4 final_color = vec4(ambient + diffuse + specular, 1.0);
+
+            // Reduce fog effect significantly to preserve colors
+            float fog_coord = (gl_FragCoord.z / gl_FragCoord.w) / 1000.0;
+            float fog_density = 20.0;
+            float fog = fog_coord * fog_density;
+            vec4 fog_color = vec4(0.05, 0.05, 0.05, 1.0);
+            float fog_factor = clamp(1.0 - fog, 0.0, 1.0);
+
+            gl_FragColor = mix(fog_color, final_color, vec4(fog_factor, fog_factor, fog_factor, fog_factor));
+        }
+    </script>
+
+    <!-- glMatrix library for matrix math operations (loaded from CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/gl-matrix@2.8.1/dist/gl-matrix-min.js"></script>
+    
+    <!-- Controls info -->
+    <div class="controls-info" id="main-controls-panel">
+        <div class="controls-header" id="main-controls-toggle">
+            <svg class="controls-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 17l10 5 10-5"></path>
+                <path d="M2 12l10 5 10-5"></path>
+            </svg>
+            <span>Controls</span>
+            <svg class="expand-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        </div>
+        
+        <div class="controls-content" id="main-controls-content">
+            <div class="controls-section" style="border-bottom: 1px solid rgba(100, 100, 120, 0.3); padding-bottom: 12px; margin-bottom: 12px;">
+                <div class="controls-label" style="color: #64b5f6; margin-bottom: 8px;">Welcome!</div>
+                <div style="font-size: 11px; color: #b0b0b0; line-height: 1.6;">
+                    <p style="margin: 0 0 8px 0;">This is an interactive 3D Sierpinski Pyramid viewer built with WebGL.</p>
+                    <p style="margin: 0 0 8px 0;"><strong>What you see:</strong> A fractal pyramid that can be subdivided into smaller pyramids.</p>
+                    <p style="margin: 0;"><strong>Try it:</strong> Use the slider below to increase subdivisions and watch the fractal pattern emerge!</p>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="controls-label">Mouse</div>
+                <div class="controls-item">
+                    <span class="key-hint">LMB</span>
+                    <span class="key-description">+ Drag to orbit</span>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="controls-label">Keyboard</div>
+                <div class="controls-item">
+                    <span class="key-hint">W</span>
+                    <span class="key-separator">/</span>
+                    <span class="key-hint">S</span>
+                    <span class="key-description">Zoom in/out</span>
+                </div>
+                <div class="controls-item">
+                    <span class="key-hint">A</span>
+                    <span class="key-separator">/</span>
+                    <span class="key-hint">D</span>
+                    <span class="key-description">Rotate left/right</span>
+                </div>
+                <div class="controls-item">
+                    <span class="key-hint">0-5</span>
+                    <span class="key-description">Subdivision levels</span>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="controls-label">Subdivisions</div>
+                <div class="slider-container">
+                    <input type="range" id="subdivision-slider" min="0" max="5" value="0" class="subdivision-slider">
+                    <div class="slider-info">
+                        <span class="slider-value" id="subdivision-value">0</span>
+                        <span class="slider-range">/ 5</span>
+                        <span class="loading-indicator" id="loading-indicator" style="display: none;">⏳</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="controls-label">Pyramid Shape</div>
+                <div class="slider-container">
+                    <label class="slider-label">Size</label>
+                    <input type="range" id="pyramid-size-slider" min="1.0" max="6.0" step="0.1" value="3.0" class="subdivision-slider">
+                    <div class="slider-info">
+                        <span class="slider-value" id="pyramid-size-value">3.0</span>
+                    </div>
+                </div>
+                <div class="slider-container" style="margin-top: 10px;">
+                    <label class="slider-label">Stretch X</label>
+                    <input type="range" id="pyramid-stretch-x-slider" min="0.5" max="2.0" step="0.1" value="1.0" class="subdivision-slider">
+                    <div class="slider-info">
+                        <span class="slider-value" id="pyramid-stretch-x-value">1.0</span>
+                    </div>
+                </div>
+                <div class="slider-container" style="margin-top: 10px;">
+                    <label class="slider-label">Stretch Y</label>
+                    <input type="range" id="pyramid-stretch-y-slider" min="0.5" max="2.0" step="0.1" value="1.0" class="subdivision-slider">
+                    <div class="slider-info">
+                        <span class="slider-value" id="pyramid-stretch-y-value">1.0</span>
+                    </div>
+                </div>
+                <div class="slider-container" style="margin-top: 10px;">
+                    <label class="slider-label">Stretch Z</label>
+                    <input type="range" id="pyramid-stretch-z-slider" min="0.5" max="2.0" step="0.1" value="1.0" class="subdivision-slider">
+                    <div class="slider-info">
+                        <span class="slider-value" id="pyramid-stretch-z-value">1.0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="controls-item" style="margin-top: 10px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="coordinates-checkbox" checked style="margin-right: 8px;">
+                        <span>Coordinates Line</span>
+                    </label>
+                </div>
+                
+                <div class="controls-item" style="margin-top: 10px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="grid-checkbox" checked style="margin-right: 8px;">
+                        <span>Grid View</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Axis labels -->
+    <div id="axis-label-x" class="axis-label">X</div>
+    <div id="axis-label-y" class="axis-label">Y</div>
+    <div id="axis-label-z" class="axis-label">Z</div>
+
+    <!-- Main entry point - dynamically loads all modules -->
+    <script src="js/main.js"></script>
+</body>
+</html>

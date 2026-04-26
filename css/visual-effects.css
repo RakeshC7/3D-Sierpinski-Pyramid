@@ -1,0 +1,64 @@
+/*
+* ============================================================================
+* VISUAL EFFECTS PANEL
+* ============================================================================
+*/
+
+#visual-effects-panel .slider-container {
+    margin-bottom: 12px;
+}
+
+#visual-effects-panel .slider-container:last-child {
+    margin-bottom: 0;
+}
+
+#visual-effects-panel input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4a9eff;
+}
+
+#visual-effects-panel button {
+    transition: all 0.2s ease;
+}
+
+#visual-effects-panel button:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+#visual-effects-panel {
+    width: 240px !important;
+}
+
+#visual-effects-panel select {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#visual-effects-panel select:hover {
+    border-color: rgba(100, 181, 246, 0.5) !important;
+}
+
+#visual-effects-panel select:focus {
+    outline: none;
+    border-color: rgba(100, 181, 246, 0.8) !important;
+    box-shadow: 0 0 8px rgba(100, 181, 246, 0.3);
+}
+
+#gradient-controls {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 500px;
+    }
+}
+

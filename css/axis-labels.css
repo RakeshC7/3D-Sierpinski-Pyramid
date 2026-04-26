@@ -1,0 +1,22 @@
+/*
+* ============================================================================
+* AXIS LABELS
+* ============================================================================
+*/
+
+.axis-label {
+    position: absolute;
+    color: white;
+    font-family: 'Arial Black', Arial, sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    text-shadow: 
+        3px 3px 6px rgba(0, 0, 0, 1.0),
+        0 0 10px rgba(255, 255, 255, 0.5),
+        0 0 20px rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+    z-index: 200;
+    transform: translate(-50%, -50%);
+    letter-spacing: 2px;
+}
+
