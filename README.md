@@ -69,7 +69,7 @@ This project is open source and available under the MIT License.
 
 ## Author
 
-Created by Rakesh Chotaliya
+Created by [Rakesh Chotaliya](https://github.com/RakeshC7)
 
 ---
 
